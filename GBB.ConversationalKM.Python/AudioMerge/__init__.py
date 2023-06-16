@@ -33,7 +33,34 @@ def get_transcript(blob, blob_service_client, container):
     single_channel = True if len(set(map(lambda x: x['channel'], recognizedPhrases))) == 1 else False
     phrases = list(map(lambda x: extract_data(x, timestamp, single_channel), recognizedPhrases))
 
-    save_conversation(transcript_id, phrases, blob_service_client, container)
+    # Inserted logic to count tokens and split conversation into parts after a certain threshold
+    import tiktoken
+
+    encoding = tiktoken.get_encoding("cl100k_base")
+    encoding = tiktoken.encoding_for_model("gpt-3.5-turbo")
+
+    def num_tokens_from_string(string: str, encoding_name: str) -> int:
+        """Returns the number of tokens in a text string."""
+        encoding = tiktoken.get_encoding(encoding_name)
+        num_tokens = len(encoding.encode(string))
+        return num_tokens
+
+    token_count = 0
+    max_tokens = 2000 # Replace with the max number of tokens you want in each "chunk" of the transcript
+    phrase_list = []
+    part=1
+
+    for item in phrases:
+        #print(item)
+        token_count += num_tokens_from_string(item['phrase'], "cl100k_base")
+        phrase_list.append(item)
+
+        if token_count > max_tokens:
+            name = f'part_{part}_'+transcript_id
+            save_conversation(name, phrase_list, blob_service_client, 'conversationkm-full')
+            phrase_list = []
+            part+=1
+        
 
 # Extract date from Speech Data
 def extract_data(x, timestamp, single_channel):
